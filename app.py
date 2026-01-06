@@ -4,71 +4,68 @@ import base64
 from gtts import gTTS
 from streamlit_mic_recorder import mic_recorder
 import tempfile
+import speech_recognition as sr
 import os
 
-# --- 1. SETTINGS ---
+# --- SETTINGS ---
 USER_NAME = "MD AFNAN KHAJA"
 COLLEGE = "GM Institute of Technology, Davangere"
 API_KEY = st.secrets["GEMINI_API_KEY"]
 
 st.set_page_config(page_title=f"{USER_NAME} - AI Twin", page_icon="🎙️")
 
-# --- 2. THE PERSONA ---
+# --- PERSONA ---
 SYSTEM_PROMPT = f"""
-You are the AI Digital Twin of {USER_NAME}, a 7th-semester CSE student from {COLLEGE}. 
-Rules: Be honest about being a learner, show grit, mention your Crypto Bot and Drainage projects. 
-Keep answers to 2 sentences max. Use 'I', 'me', 'my'.
+You are the AI Digital Twin of {USER_NAME}, a 7th-semester CSE student from {COLLEGE}.
+Rules:
+- Be honest about being a learner
+- Mention Crypto Bot & AI Drainage Digital Twin projects
+- Max 2 sentences
+- Use 'I', 'me', 'my'
 """
 
 st.title("🎙️ Talk to My Digital Twin")
-st.write(f"**Candidate:** {USER_NAME}")
-st.info("Click the mic, ask a question, and I will reply with my voice.")
+st.info("Click the mic and ask a question")
 
-# --- 3. THE MAGIC: DIRECT API CALL ---
-audio_data = mic_recorder(
-    start_prompt="⏺️ Record Your Question",
-    stop_prompt="⏹️ Stop & Send to AI",
-    key='recorder'
-)
+# --- MIC ---
+audio_data = mic_recorder(start_prompt="🎤 Speak", stop_prompt="🛑 Stop", key="rec")
 
 if audio_data:
-    with st.spinner("Talking directly to the Gemini brain..."):
-        # Convert audio to base64
-        audio_b64 = base64.b64encode(audio_data['bytes']).decode('utf-8')
-        
-        # Prepare the Direct API Request to v1 Stable
+    with st.spinner("Transcribing your voice..."):
+        # Save audio
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as f:
+            f.write(audio_data["bytes"])
+            audio_path = f.name
+
+        # Speech → Text
+        r = sr.Recognizer()
+        with sr.AudioFile(audio_path) as source:
+            audio = r.record(source)
+            user_text = r.recognize_google(audio)
+
+        st.chat_message("user").write(user_text)
+
+    with st.spinner("Thinking as Digital Twin..."):
         url = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={API_KEY}"
-        
+
         payload = {
             "contents": [{
                 "parts": [
                     {"text": SYSTEM_PROMPT},
-                    {
-                        "inline_data": {
-                            "mime_type": "audio/wav",
-                            "data": audio_b64
-                        }
-                    }
+                    {"text": user_text}
                 ]
             }]
         }
 
-        try:
-            response = requests.post(url, json=payload)
-            result = response.json()
-            
-            # Extract text safely
-            ai_text = result['candidates'][0]['content']['parts'][0]['text']
+        response = requests.post(url, json=payload)
+        result = response.json()
 
-            with st.chat_message("assistant"):
-                st.write(ai_text)
+        ai_text = result["candidates"][0]["content"]["parts"][0]["text"]
 
-            # Voice Output
-            tts = gTTS(text=ai_text, lang='en')
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as temp_mp3:
-                tts.save(temp_mp3.name)
-                st.audio(temp_mp3.name, format="audio/mp3", autoplay=True)
+        st.chat_message("assistant").write(ai_text)
 
-        except Exception as e:
-            st.error("The direct connection failed. Check your API Key permissions.")
-            st.write(f"Debug Info: {result if 'result' in locals() else e}")
+        # Voice Output
+        tts = gTTS(ai_text)
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as mp3:
+            tts.save(mp3.name)
+            st.audio(mp3.name, autoplay=True)
