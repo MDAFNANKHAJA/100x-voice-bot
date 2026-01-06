@@ -26,7 +26,7 @@ if "GEMINI_API_KEY" not in st.secrets:
     st.error("Missing API Key. Please add GEMINI_API_KEY to Streamlit Secrets.")
     st.stop()
 
-# --- THE FIX: FORCE API VERSION V1 ---
+# Configure the API
 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 
 # --- 2. THE PERSONA ---
@@ -57,14 +57,14 @@ audio_data = mic_recorder(
 )
 
 if audio_data:
-    with st.spinner("Thinking like a 100x engineer..."):
+    with st.spinner("Processing your voice..."):
         with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as temp_audio:
             temp_audio.write(audio_data['bytes'])
             temp_path = temp_audio.name
 
         try:
-            # FIX: Use the stable model call
-            model = genai.GenerativeModel("gemini-1.5-flash")
+            # THE FIX: Using the absolute model identifier
+            model = genai.GenerativeModel("models/gemini-1.5-flash-latest")
             
             # Upload and process
             audio_file = genai.upload_file(path=temp_path)
@@ -85,11 +85,10 @@ if audio_data:
                     tts.save(temp_mp3.name)
                     st.audio(temp_mp3.name, format="audio/mp3", autoplay=True)
             else:
-                st.warning("I heard you, but the brain didn't reply. Try again!")
+                st.warning("I heard you, but my logic failed. Please try again.")
 
         except Exception as e:
-            # Check if it's the 404 error again and provide a specific fix
-            st.error("Technical glitch!")
+            st.error("Connection glitch!")
             st.write(f"Debug Info: {e}")
         finally:
             if os.path.exists(temp_path):
