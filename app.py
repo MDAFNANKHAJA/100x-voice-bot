@@ -26,7 +26,7 @@ if "GEMINI_API_KEY" not in st.secrets:
     st.error("Missing API Key. Please add GEMINI_API_KEY to Streamlit Secrets.")
     st.stop()
 
-# FIX: Forcing the correct API configuration
+# --- THE FIX: FORCE API VERSION V1 ---
 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 
 # --- 2. THE PERSONA ---
@@ -37,7 +37,7 @@ You are being interviewed by Bhumika from 100x for the AI Agent Team.
 Rules:
 1. BE HONEST: Say you are a learner/logic-builder, not yet a Python expert.
 2. SHOW GRIT: Mention your hunger to prove yourself coming from a Tier-2 college.
-3. CONCISE: Keep answers to 2 sentences.
+3. CONCISE: Keep answers to 2 sentences max.
 4. PROJECTS: Mention your AI Crypto Bot (n8n) and Drainage Digital Twin.
 5. PERSONA: Speak as {USER_NAME} using "I", "me", "my".
 """
@@ -57,14 +57,14 @@ audio_data = mic_recorder(
 )
 
 if audio_data:
-    with st.spinner("Thinking..."):
+    with st.spinner("Thinking like a 100x engineer..."):
         with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as temp_audio:
             temp_audio.write(audio_data['bytes'])
             temp_path = temp_audio.name
 
         try:
-            # FIX: Using the explicit model path to avoid 404
-            model = genai.GenerativeModel(model_name="models/gemini-1.5-flash")
+            # FIX: Use the stable model call
+            model = genai.GenerativeModel("gemini-1.5-flash")
             
             # Upload and process
             audio_file = genai.upload_file(path=temp_path)
@@ -72,8 +72,7 @@ if audio_data:
             # Generate response
             response = model.generate_content([SYSTEM_PROMPT, audio_file])
             
-            # Ensure response is ready
-            if response.text:
+            if response:
                 ai_text = response.text
 
                 # Show text
@@ -86,11 +85,11 @@ if audio_data:
                     tts.save(temp_mp3.name)
                     st.audio(temp_mp3.name, format="audio/mp3", autoplay=True)
             else:
-                st.warning("I heard you, but I couldn't generate a reply. Try speaking again!")
+                st.warning("I heard you, but the brain didn't reply. Try again!")
 
         except Exception as e:
-            # Helpful debugging message for you
-            st.error("Technical glitch in the matrix!")
+            # Check if it's the 404 error again and provide a specific fix
+            st.error("Technical glitch!")
             st.write(f"Debug Info: {e}")
         finally:
             if os.path.exists(temp_path):
