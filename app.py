@@ -232,38 +232,38 @@ If asked about specific projects or achievements, be creative but realistic for 
                 st.stop()
             
             ai_text = candidate["content"]["parts"][0]["text"]
-                
-                # Save to conversation history
-                st.session_state.conversation_history.append({
-                    "user": user_text,
-                    "ai": ai_text
-                })
-                
-                # STEP 4: Text to Speech
-                status_text.markdown("**Step 4/4:** 🔊 Generating voice response...")
-                progress_bar.progress(100)
-                
-                # Display response
-                st.markdown("### 💬 AI Response")
-                with st.chat_message("assistant"):
-                    st.write(ai_text)
-                
-                # Generate audio
-                tts = gTTS(ai_text, lang="en", slow=False)
-                with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as mp3:
-                    tts.save(mp3.name)
-                    st.audio(mp3.name, autoplay=True)
-                    os.remove(mp3.name)
-                
-                status_text.markdown("✅ **Complete!** Ask another question or review the conversation history.")
-                time.sleep(1)
-                progress_bar.empty()
-                status_text.empty()
-                
-            else:
-                st.error("❌ Gemini API did not return a valid response.")
-                with st.expander("🔍 View API Response"):
-                    st.json(result)
+            
+            # Save to conversation history
+            st.session_state.conversation_history.append({
+                "user": user_text,
+                "ai": ai_text
+            })
+            
+            # STEP 4: Text to Speech
+            status_text.markdown("**Step 4/4:** 🔊 Generating voice response...")
+            progress_bar.progress(100)
+            
+            # Display response
+            st.markdown("### 💬 AI Response")
+            with st.chat_message("assistant"):
+                st.write(ai_text)
+            
+            # Generate audio
+            tts = gTTS(ai_text, lang="en", slow=False)
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as mp3:
+                tts.save(mp3.name)
+                st.audio(mp3.name, autoplay=True)
+                os.remove(mp3.name)
+            
+            status_text.markdown("✅ **Complete!** Ask another question or review the conversation history.")
+            time.sleep(1)
+            progress_bar.empty()
+            status_text.empty()
+            
+        else:
+            st.error("❌ Gemini API did not return a valid response.")
+            with st.expander("🔍 View API Response"):
+                st.json(result)
             
             # Cleanup
             os.remove(wav_path)
