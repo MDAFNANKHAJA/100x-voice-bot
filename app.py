@@ -11,22 +11,14 @@ COLLEGE = "GM Institute of Technology, Davangere"
 
 st.set_page_config(page_title="MD AFNAN KHAJA - AI Twin", page_icon="🎙️")
 
-# Professional UI Tweak
-hide_st_style = """
-            <style>
-            #MainMenu {visibility: hidden;}
-            footer {visibility: hidden;}
-            header {visibility: hidden;}
-            </style>
-            """
-st.markdown(hide_st_style, unsafe_allow_html=True)
+# Professional UI
+st.markdown("<style>#MainMenu {visibility: hidden;} footer {visibility: hidden;}</style>", unsafe_allow_html=True)
 
 # API Key Check
 if "GEMINI_API_KEY" not in st.secrets:
-    st.error("Missing API Key. Please add GEMINI_API_KEY to Streamlit Secrets.")
+    st.error("Missing API Key in Streamlit Secrets.")
     st.stop()
 
-# Configure the API
 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 
 # --- 2. THE PERSONA ---
@@ -35,19 +27,16 @@ You are the AI Digital Twin of {USER_NAME}, a 7th-semester CSE student from {COL
 You are being interviewed by Bhumika from 100x for the AI Agent Team.
 
 Rules:
-1. BE HONEST: Say you are a learner/logic-builder, not yet a Python expert.
+1. BE HONEST: Say you are a logic-builder and a learner, not a Python expert.
 2. SHOW GRIT: Mention your hunger to prove yourself coming from a Tier-2 college in Davangere.
-3. CONCISE: Keep answers to 2 sentences max.
-4. PROJECTS: Mention your AI Crypto Bot (n8n) and Drainage Digital Twin.
-5. PERSONA: Speak as {USER_NAME} using "I", "me", "my".
+3. PROJECTS: Mention your AI Crypto Bot and Drainage Digital Twin.
+4. PERSONA: Speak as {USER_NAME} using "I", "me", "my". Keep it to 2 sentences.
 """
 
 # --- 3. THE FRONT END ---
 st.title("🎙️ Talk to My Digital Twin")
 st.write(f"**Candidate:** {USER_NAME}")
-st.write(f"**College:** {COLLEGE}")
-
-st.info("Click the mic, ask a question, and I will reply with my voice.")
+st.info("Click the mic, ask a question, and wait for my voice response.")
 
 # --- 4. THE MAGIC: VOICE INTERACTION ---
 audio_data = mic_recorder(
@@ -57,16 +46,16 @@ audio_data = mic_recorder(
 )
 
 if audio_data:
-    with st.spinner("Processing your voice..."):
+    with st.spinner("Processing..."):
         with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as temp_audio:
             temp_audio.write(audio_data['bytes'])
             temp_path = temp_audio.name
 
         try:
-            # THE FIX: Simplified stable model name
+            # THE FIX: Explicitly calling the stable model
             model = genai.GenerativeModel('gemini-1.5-flash')
             
-            # Upload and process
+            # Upload audio
             audio_file = genai.upload_file(path=temp_path)
             
             # Generate response
@@ -74,8 +63,6 @@ if audio_data:
             
             if response.text:
                 ai_text = response.text
-
-                # Show text
                 with st.chat_message("assistant"):
                     st.write(ai_text)
 
@@ -85,11 +72,11 @@ if audio_data:
                     tts.save(temp_mp3.name)
                     st.audio(temp_mp3.name, format="audio/mp3", autoplay=True)
             else:
-                st.warning("I heard you, but my brain is still waking up. Try again!")
+                st.warning("Could not generate a response. Please speak again.")
 
         except Exception as e:
-            st.error("Connection glitch! We are almost there.")
-            st.write(f"Debug Info: {e}")
+            st.error("Technical glitch! Please check the logs.")
+            st.write(f"Error: {e}")
         finally:
             if os.path.exists(temp_path):
                 os.remove(temp_path)
