@@ -5,14 +5,11 @@ from streamlit_mic_recorder import mic_recorder
 import tempfile
 import os
 
-# --- 1. SETTINGS & PERSONALIZATION ---
+# --- 1. SETTINGS ---
 USER_NAME = "MD AFNAN KHAJA" 
 COLLEGE = "GM Institute of Technology, Davangere"
 
-st.set_page_config(page_title="MD AFNAN KHAJA - AI Twin", page_icon="🎙️")
-
-# Professional UI
-st.markdown("<style>#MainMenu {visibility: hidden;} footer {visibility: hidden;}</style>", unsafe_allow_html=True)
+st.set_page_config(page_title=f"{USER_NAME} - AI Twin", page_icon="🎙️")
 
 # API Key Check
 if "GEMINI_API_KEY" not in st.secrets:
@@ -24,21 +21,16 @@ genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 # --- 2. THE PERSONA ---
 SYSTEM_PROMPT = f"""
 You are the AI Digital Twin of {USER_NAME}, a 7th-semester CSE student from {COLLEGE}. 
-You are being interviewed by Bhumika from 100x for the AI Agent Team.
-
-Rules:
-1. BE HONEST: Say you are a logic-builder and a learner, not a Python expert.
-2. SHOW GRIT: Mention your hunger to prove yourself coming from a Tier-2 college in Davangere.
-3. PROJECTS: Mention your AI Crypto Bot and Drainage Digital Twin.
-4. PERSONA: Speak as {USER_NAME} using "I", "me", "my". Keep it to 2 sentences.
+Rules: Be honest, show grit, mention your Crypto Bot and Drainage projects. 
+Keep answers to 2-3 sentences max. Use 'I', 'me', 'my'.
 """
 
 # --- 3. THE FRONT END ---
 st.title("🎙️ Talk to My Digital Twin")
 st.write(f"**Candidate:** {USER_NAME}")
-st.info("Click the mic, ask a question, and wait for my voice response.")
+st.info("Click the mic, ask a question, and I will reply with my voice.")
 
-# --- 4. THE MAGIC: VOICE INTERACTION ---
+# --- 4. THE MAGIC ---
 audio_data = mic_recorder(
     start_prompt="⏺️ Record Your Question",
     stop_prompt="⏹️ Stop & Send to AI",
@@ -52,16 +44,15 @@ if audio_data:
             temp_path = temp_audio.name
 
         try:
-            # THE FIX: Explicitly calling the stable model
-            model = genai.GenerativeModel('gemini-1.5-flash')
+            # FIX: Using the absolute model name to bypass the 404
+            model = genai.GenerativeModel(model_name="models/gemini-1.5-flash")
             
-            # Upload audio
             audio_file = genai.upload_file(path=temp_path)
             
             # Generate response
             response = model.generate_content([SYSTEM_PROMPT, audio_file])
             
-            if response.text:
+            if response and response.text:
                 ai_text = response.text
                 with st.chat_message("assistant"):
                     st.write(ai_text)
@@ -72,11 +63,11 @@ if audio_data:
                     tts.save(temp_mp3.name)
                     st.audio(temp_mp3.name, format="audio/mp3", autoplay=True)
             else:
-                st.warning("Could not generate a response. Please speak again.")
+                st.warning("I processed the audio but couldn't generate text. Please try again!")
 
         except Exception as e:
-            st.error("Technical glitch! Please check the logs.")
-            st.write(f"Error: {e}")
+            st.error("Still hitting a connection glitch!")
+            st.write(f"Technical Log: {e}")
         finally:
             if os.path.exists(temp_path):
                 os.remove(temp_path)
