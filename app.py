@@ -36,7 +36,7 @@ You are being interviewed by Bhumika from 100x for the AI Agent Team.
 
 Rules:
 1. BE HONEST: Say you are a learner/logic-builder, not yet a Python expert.
-2. SHOW GRIT: Mention your hunger to prove yourself coming from a Tier-2 college.
+2. SHOW GRIT: Mention your hunger to prove yourself coming from a Tier-2 college in Davangere.
 3. CONCISE: Keep answers to 2 sentences max.
 4. PROJECTS: Mention your AI Crypto Bot (n8n) and Drainage Digital Twin.
 5. PERSONA: Speak as {USER_NAME} using "I", "me", "my".
@@ -63,8 +63,8 @@ if audio_data:
             temp_path = temp_audio.name
 
         try:
-            # THE FIX: Using the absolute model identifier
-            model = genai.GenerativeModel("models/gemini-1.5-flash-latest")
+            # THE FIX: Simplified stable model name
+            model = genai.GenerativeModel('gemini-1.5-flash')
             
             # Upload and process
             audio_file = genai.upload_file(path=temp_path)
@@ -72,7 +72,7 @@ if audio_data:
             # Generate response
             response = model.generate_content([SYSTEM_PROMPT, audio_file])
             
-            if response:
+            if response.text:
                 ai_text = response.text
 
                 # Show text
@@ -85,10 +85,10 @@ if audio_data:
                     tts.save(temp_mp3.name)
                     st.audio(temp_mp3.name, format="audio/mp3", autoplay=True)
             else:
-                st.warning("I heard you, but my logic failed. Please try again.")
+                st.warning("I heard you, but my brain is still waking up. Try again!")
 
         except Exception as e:
-            st.error("Connection glitch!")
+            st.error("Connection glitch! We are almost there.")
             st.write(f"Debug Info: {e}")
         finally:
             if os.path.exists(temp_path):
