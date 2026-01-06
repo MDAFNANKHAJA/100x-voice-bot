@@ -7,7 +7,6 @@ import os
 import speech_recognition as sr
 from pydub import AudioSegment
 from io import BytesIO
-import time
 
 # --- 1. SETTINGS ---
 USER_NAME = "MD AFNAN KHAJA"
@@ -19,17 +18,17 @@ st.set_page_config(page_title=f"{USER_NAME} - AI Twin", page_icon="🎙️")
 st.title("🎙️ Talk to My Digital Twin")
 st.write(f"**Candidate:** {USER_NAME}")
 
-# --- 2. MIC INPUT (WITH UNIQUE KEY) ---
-# We use time.time() to ensure the mic recorder resets every time you refresh
+# --- 2. MIC INPUT ---
 audio_data = mic_recorder(
     start_prompt="🎤 Start Recording",
     stop_prompt="🛑 Stop & Send",
-    key=f"recorder_{int(time.time())}" 
+    key="recorder_v5" # Changed key to force reset
 )
 
 if audio_data:
     try:
-        # 1. Process Voice to Text
+        # STEP A: Audio Processing
+        st.write("⏳ Step 1: Processing your voice file...")
         audio_bytes = BytesIO(audio_data["bytes"])
         sound = AudioSegment.from_file(audio_bytes) 
         
@@ -37,45 +36,40 @@ if audio_data:
             sound.export(wav_file.name, format="wav")
             wav_path = wav_file.name
 
+        # STEP B: Speech to Text
+        st.write("⏳ Step 2: Converting speech to text...")
         recognizer = sr.Recognizer()
         with sr.AudioFile(wav_path) as source:
             audio = recognizer.record(source)
             user_text = recognizer.recognize_google(audio)
+        
+        st.success(f"I heard you say: '{user_text}'")
 
-        # Show what the user asked
-        st.chat_message("user").write(user_text)
+        # STEP C: Gemini AI
+        st.write("⏳ Step 3: Getting response from Gemini...")
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={API_KEY}"
+        
+        payload = {
+            "contents": [{"parts": [{"text": f"You are {USER_NAME} from {COLLEGE}. Answer this question in 2 sentences: {user_text}"}]}]
+        }
+        
+        response = requests.post(url, json=payload)
+        result = response.json()
 
-        # 2. GEMINI API (FORCED CONTEXT)
-        with st.spinner("Thinking..."):
-            url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={API_KEY}"
-            
-            # We put the user question at the VERY TOP so Gemini can't ignore it
-            full_prompt = f"""
-            QUESTION: {user_text}
-            
-            INSTRUCTION: You are {USER_NAME}, a CSE student at {COLLEGE}. 
-            Answer the QUESTION above in exactly 2 sentences. 
-            Be professional and do not repeat the same answer for different questions.
-            """
-
-            payload = {
-                "contents": [{"parts": [{"text": full_prompt}]}]
-            }
-            
-            response = requests.post(url, json=payload)
-            result = response.json()
-
+        if "candidates" in result:
             ai_text = result["candidates"][0]["content"]["parts"][0]["text"]
-
-            # Show and Speak
             st.chat_message("assistant").write(ai_text)
-            
+
+            # STEP D: Voice
             tts = gTTS(ai_text, lang="en")
             with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as mp3:
                 tts.save(mp3.name)
                 st.audio(mp3.name, autoplay=True)
+        else:
+            st.error("Gemini API did not return a response. Check your API Key permissions.")
+            st.json(result) # This will show us the EXACT error from Google
 
         os.remove(wav_path)
 
     except Exception as e:
-        st.error("I'm having trouble hearing clearly. Please try again!")
+        st.error(f"Something went wrong: {e}")
