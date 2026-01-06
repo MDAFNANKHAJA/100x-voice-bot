@@ -67,12 +67,15 @@ if audio_data:
             temp_audio.write(audio_data['bytes'])
             temp_path = temp_audio.name
 
-        try:
-            # Step 1: Brain (Gemini 1.5 Flash hears the audio)
-            model = genai.GenerativeModel("gemini-1.5-flash")
+       try:
+            # Updated Model Call
+            model = genai.GenerativeModel(model_name="gemini-1.5-flash")
             audio_file = genai.upload_file(path=temp_path)
             
+            # Ensure the response is generated correctly
             response = model.generate_content([SYSTEM_PROMPT, audio_file])
+            response.resolve() # This helps ensure the content is ready
+            ai_text = response.text
             ai_text = response.text
 
             # Step 2: Show the text
@@ -95,6 +98,7 @@ if audio_data:
 
 st.divider()
 st.caption("Built with ❤️ and Grit | Powered by Gemini 1.5 & Streamlit")
+
 
 
 
