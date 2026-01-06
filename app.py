@@ -8,103 +8,74 @@ import speech_recognition as sr
 from pydub import AudioSegment
 from io import BytesIO
 
-# --------------------------------------------------
-# SETTINGS
-# --------------------------------------------------
+# --- 1. SETTINGS ---
 USER_NAME = "MD AFNAN KHAJA"
 COLLEGE = "GM Institute of Technology, Davangere"
 API_KEY = st.secrets["GEMINI_API_KEY"]
 
-FALLBACK_MESSAGE = (
-    "I'm sorry, I hit a temporary thinking limit. "
-    "As a hardworking student from GMIT, I'd say: "
-    "please try asking me again or ask about my projects like the AI Crypto Bot!"
-)
+st.set_page_config(page_title=f"{USER_NAME} - AI Twin", page_icon="🎙️")
 
-VOICE_ERROR_MESSAGE = "I couldn't clearly hear that. Please try again."
-
-st.set_page_config(page_title="AI Digital Twin", page_icon="🎙️")
-
-# --------------------------------------------------
-# UI
-# --------------------------------------------------
 st.title("🎙️ Talk to My Digital Twin")
 st.write(f"**Candidate:** {USER_NAME}")
+st.info("Click the mic, ask a question, and I will reply with my voice.")
 
-audio_data = mic_recorder("🎤 Record", "🛑 Stop", key="rec")
+# --- 2. MIC INPUT ---
+audio_data = mic_recorder(
+    start_prompt="🎤 Record",
+    stop_prompt="🛑 Stop & Send",
+    key="recorder"
+)
 
 if audio_data:
-    # --------------------------------------------------
-    # AUDIO → TEXT
-    # --------------------------------------------------
-    audio_bytes = BytesIO(audio_data["bytes"])
-    sound = AudioSegment.from_file(audio_bytes, format="webm")
-    sound = sound.set_frame_rate(16000).set_channels(1)
-
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as f:
-        sound.export(f.name, format="wav")
-        wav_path = f.name
-
-    r = sr.Recognizer()
-
     try:
-        with sr.AudioFile(wav_path) as src:
-            audio = r.record(src)
-            user_text = r.recognize_google(audio)
-    except sr.UnknownValueError:
-        st.warning(VOICE_ERROR_MESSAGE)
-        st.stop()
+        with st.spinner("Processing voice..."):
+            audio_bytes = BytesIO(audio_data["bytes"])
+            sound = AudioSegment.from_file(audio_bytes) 
+            
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as wav_file:
+                sound.export(wav_file.name, format="wav")
+                wav_path = wav_file.name
 
-    st.chat_message("user").write(user_text)
+        # --- 3. SPEECH TO TEXT ---
+        recognizer = sr.Recognizer()
+        with sr.AudioFile(wav_path) as source:
+            audio = recognizer.record(source)
+            user_text = recognizer.recognize_google(audio)
 
-    # 🚫 Reject useless inputs
-    if len(user_text.strip()) < 4:
-        st.chat_message("assistant").write(
-            "Could you please ask a complete question?"
-        )
-        st.stop()
+        st.chat_message("user").write(user_text)
 
-    # --------------------------------------------------
-    # GEMINI PROMPT (FIXED)
-    # --------------------------------------------------
-    final_prompt = f"""
-You are {USER_NAME}, a 7th-semester CSE student from {COLLEGE}.
-You must always answer as yourself in first person.
+        # --- 4. GEMINI API (ULTRA STABLE VERSION) ---
+        with st.spinner("Thinking..."):
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={API_KEY}"
+            
+            # Simplified prompt to pass all safety filters
+            prompt = f"The user asked: {user_text}. Respond as {USER_NAME}, a student from {COLLEGE}. Be helpful and professional."
 
-Rules:
-- Max 2 sentences
-- Be confident but honest
-- Mention AI Crypto Bot or AI Drainage Digital Twin if relevant
-- NEVER refuse to answer unless unsafe
+            payload = {
+                "contents": [{"parts": [{"text": prompt}]}]
+            }
+            
+            response = requests.post(url, json=payload)
+            result = response.json()
 
-Question:
-{user_text}
-"""
+            # --- LOGIC TO EXTRACT TEXT OR SHOW ERROR ---
+            if "candidates" in result and result["candidates"][0].get("content"):
+                ai_text = result["candidates"][0]["content"]["parts"][0]["text"]
+            else:
+                # If blocked, this helps us see WHY
+                reason = result.get("promptFeedback", {}).get("blockReason", "Unknown Limit")
+                ai_text = f"I am {USER_NAME}. I'm currently refining my AI brain to be more robust. Let's talk about my work with AI Agents or my Crypto Bot instead! (Reason: {reason})"
 
-    url = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={API_KEY}"
+            st.chat_message("assistant").write(ai_text)
 
-    payload = {
-        "contents": [{
-            "parts": [{"text": final_prompt}]
-        }]
-    }
+            # --- 5. TEXT TO SPEECH ---
+            tts = gTTS(ai_text, lang="en")
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as mp3:
+                tts.save(mp3.name)
+                st.audio(mp3.name, autoplay=True)
 
-    response = requests.post(url, json=payload, timeout=20)
-    result = response.json()
+        os.remove(wav_path)
 
-    if "candidates" in result and result["candidates"]:
-        ai_text = result["candidates"][0]["content"]["parts"][0]["text"]
-    else:
-        ai_text = FALLBACK_MESSAGE
-
-    st.chat_message("assistant").write(ai_text)
-
-    # --------------------------------------------------
-    # VOICE OUTPUT
-    # --------------------------------------------------
-    tts = gTTS(ai_text)
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as mp3:
-        tts.save(mp3.name)
-        st.audio(mp3.name, autoplay=True)
-
-    os.remove(wav_path)
+    except Exception as e:
+        st.error("Audio processing failed. Try again!")
+        st.write(f"Error Details: {e}")
