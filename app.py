@@ -6,13 +6,12 @@ import tempfile
 import os
 
 # --- 1. SETTINGS & PERSONALIZATION ---
-# CHANGE THIS TO YOUR NAME
-USER_NAME = "[MD AFNAN KHAJA]" 
-COLLEGE = "GM University, Davangere"
+USER_NAME = "MD AFNAN KHAJA" 
+COLLEGE = "GM Institute of Technology, Davangere"
 
 st.set_page_config(page_title="MD AFNAN KHAJA - AI Twin", page_icon="🎙️")
 
-# Hide Streamlit's default menu to make it look like a professional app
+# Professional UI Tweak
 hide_st_style = """
             <style>
             #MainMenu {visibility: hidden;}
@@ -22,28 +21,27 @@ hide_st_style = """
             """
 st.markdown(hide_st_style, unsafe_allow_html=True)
 
-# API Key Check (Recruiter won't see this if set in Secrets)
+# API Key Check
 if "GEMINI_API_KEY" not in st.secrets:
     st.error("Missing API Key. Please add GEMINI_API_KEY to Streamlit Secrets.")
     st.stop()
 
 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 
-
 # --- 2. THE PERSONA: HONEST, GRITTY, & NATURAL ---
 SYSTEM_PROMPT = f"""
-You are the AI Digital Twin of MD AFNAN KHAJA, a 7th-semester CSE student from GM Institute of Technology. 
+You are the AI Digital Twin of {USER_NAME}, a 7th-semester CSE student from {COLLEGE}. 
 You are currently being interviewed by Bhumika from 100x for the AI Agent Team.
 
 Rules for your Personality:
 1. BE HONEST: If asked about being an expert, say: "I’ll be honest—I’m a fresher and not a Python expert yet. But I am a logic-builder. I learn by doing, and I don't stop until the code works."
-2. SHOW GRIT: Mention that coming from a Tier-2 college like GMIT, you have a 'hunger' to prove yourself. You don't sleep when a problem is unsolved.
-3. BE CONCISE: Keep answers to 2-3 sentences. 
+2. SHOW GRIT: Mention that coming from a Tier-2 college, you have a 'hunger' to prove yourself. You don't sleep when a problem is unsolved.
+3. BE CONCISE: Keep answers to 2-3 sentences max. 
 4. PROJECTS: You've built an AI Crypto Bot using n8n and a Digital Twin for drainage. These prove your 'ready-to-learn' attitude.
-5. NO ROBOT TALK: Speak as if you ARE MD AFNAN KHAJA. Use "I", "my", and "me".
+5. NO ROBOT TALK: Speak as if you ARE {USER_NAME}. Use "I", "my", and "me".
 """
 
-# --- 3. THE FRONT END (USER FRIENDLY) ---
+# --- 3. THE FRONT END ---
 st.title("🎙️ Talk to My Digital Twin")
 st.write(f"**Candidate:** {USER_NAME}")
 st.write(f"**College:** {COLLEGE}")
@@ -53,7 +51,7 @@ st.info("""
 Please click the mic, ask a question, and I will reply with my voice.
 """)
 
-# --- 4. THE MAGIC: VOICE IN -> BRAIN -> VOICE OUT ---
+# --- 4. THE MAGIC: VOICE INTERACTION ---
 audio_data = mic_recorder(
     start_prompt="⏺️ Record Your Question",
     stop_prompt="⏹️ Stop & Send to AI",
@@ -67,26 +65,23 @@ if audio_data:
             temp_audio.write(audio_data['bytes'])
             temp_path = temp_audio.name
 
-       try:
-            # Updated Model Call
+        try:
+            # Step 1: Brain (Using the most stable model name)
             model = genai.GenerativeModel(model_name="gemini-1.5-flash")
             audio_file = genai.upload_file(path=temp_path)
             
-            # Ensure the response is generated correctly
+            # Step 2: Generate Content
             response = model.generate_content([SYSTEM_PROMPT, audio_file])
-            response.resolve() # This helps ensure the content is ready
-            ai_text = response.text
             ai_text = response.text
 
-            # Step 2: Show the text
+            # Step 3: Show the text
             with st.chat_message("assistant"):
                 st.write(ai_text)
 
-            # Step 3: Voice (gTTS)
+            # Step 4: Voice Output
             tts = gTTS(text=ai_text, lang='en')
             with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as temp_mp3:
                 tts.save(temp_mp3.name)
-                # Autoplay for a seamless experience
                 st.audio(temp_mp3.name, format="audio/mp3", autoplay=True)
 
         except Exception as e:
@@ -98,7 +93,3 @@ if audio_data:
 
 st.divider()
 st.caption("Built with ❤️ and Grit | Powered by Gemini 1.5 & Streamlit")
-
-
-
-
