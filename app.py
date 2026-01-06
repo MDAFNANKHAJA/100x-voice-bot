@@ -147,6 +147,7 @@ if audio_data:
             # STEP 3: Get API Key
             if "GEMINI_API_KEY" not in st.secrets:
                 st.error("⚠️ API Key not found! Please add GEMINI_API_KEY to your secrets.")
+                st.info("💡 Go to App Settings → Secrets and add: GEMINI_API_KEY = 'your-key'")
                 st.stop()
             
             API_KEY = st.secrets["GEMINI_API_KEY"]
@@ -177,11 +178,60 @@ If asked about specific projects or achievements, be creative but realistic for 
                 }
             }
             
-            response = requests.post(url, json=payload, timeout=10)
+            response = requests.post(url, json=payload, timeout=15)
+            
+            # Debug: Show response status
+            st.write(f"🔍 API Response Status: {response.status_code}")
+            
+            if response.status_code != 200:
+                st.error(f"❌ API Error: Status {response.status_code}")
+                st.error(f"Message: {response.text}")
+                
+                if response.status_code == 400:
+                    st.warning("💡 **Possible Fix:** Your API key might be invalid or the request format is wrong.")
+                elif response.status_code == 403:
+                    st.warning("💡 **Possible Fix:** API key doesn't have permission. Check your Google AI Studio settings.")
+                elif response.status_code == 429:
+                    st.warning("💡 **Possible Fix:** Rate limit exceeded. Wait a moment and try again.")
+                
+                st.stop()
+            
             result = response.json()
             
-            if "candidates" in result and len(result["candidates"]) > 0:
-                ai_text = result["candidates"][0]["content"]["parts"][0]["text"]
+            # Debug: Show full response structure
+            with st.expander("🔍 Debug: View Full API Response"):
+                st.json(result)
+            
+            # Check for safety blocks or errors
+            if "candidates" not in result:
+                st.error("❌ No candidates in response. The API might have blocked the content.")
+                
+                if "promptFeedback" in result:
+                    st.warning(f"⚠️ Prompt Feedback: {result['promptFeedback']}")
+                
+                if "error" in result:
+                    st.error(f"API Error: {result['error'].get('message', 'Unknown error')}")
+                
+                st.stop()
+            
+            if len(result["candidates"]) == 0:
+                st.error("❌ Empty candidates list. Content may have been filtered.")
+                st.stop()
+            
+            candidate = result["candidates"][0]
+            
+            # Check for safety ratings
+            if "finishReason" in candidate and candidate["finishReason"] != "STOP":
+                st.warning(f"⚠️ Generation stopped: {candidate.get('finishReason')}")
+                if "safetyRatings" in candidate:
+                    st.warning("Content may have triggered safety filters")
+            
+            if "content" not in candidate or "parts" not in candidate["content"]:
+                st.error("❌ Unexpected response structure")
+                st.json(candidate)
+                st.stop()
+            
+            ai_text = candidate["content"]["parts"][0]["text"]
                 
                 # Save to conversation history
                 st.session_state.conversation_history.append({
