@@ -16,13 +16,14 @@ if "GEMINI_API_KEY" not in st.secrets:
     st.error("Missing API Key in Streamlit Secrets.")
     st.stop()
 
+# --- THE FIX: FORCING V1 STABLE API ---
 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 
 # --- 2. THE PERSONA ---
 SYSTEM_PROMPT = f"""
 You are the AI Digital Twin of {USER_NAME}, a 7th-semester CSE student from {COLLEGE}. 
-Rules: Be honest, show grit, mention your Crypto Bot and Drainage projects. 
-Keep answers to 2-3 sentences max. Use 'I', 'me', 'my'.
+Rules: Be honest, show grit, mention your Crypto Bot (n8n) and Drainage projects. 
+Keep answers to 2 sentences. Use 'I', 'me', 'my'.
 """
 
 # --- 3. THE FRONT END ---
@@ -44,9 +45,10 @@ if audio_data:
             temp_path = temp_audio.name
 
         try:
-            # FIX: Using the absolute model name to bypass the 404
-            model = genai.GenerativeModel(model_name="models/gemini-1.5-flash")
+            # FIX: Using the absolute path name which is recognized by all API versions
+            model = genai.GenerativeModel("models/gemini-1.5-flash-latest")
             
+            # Upload and process
             audio_file = genai.upload_file(path=temp_path)
             
             # Generate response
@@ -63,10 +65,10 @@ if audio_data:
                     tts.save(temp_mp3.name)
                     st.audio(temp_mp3.name, format="audio/mp3", autoplay=True)
             else:
-                st.warning("I processed the audio but couldn't generate text. Please try again!")
+                st.warning("I heard you, but the brain didn't reply. Try speaking again!")
 
         except Exception as e:
-            st.error("Still hitting a connection glitch!")
+            st.error("The glitch is persistent, but we are closer!")
             st.write(f"Technical Log: {e}")
         finally:
             if os.path.exists(temp_path):
