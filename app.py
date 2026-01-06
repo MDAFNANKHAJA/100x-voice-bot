@@ -9,7 +9,7 @@ from pydub import AudioSegment
 from io import BytesIO
 
 # --------------------------------------------------
-# 1. SETTINGS
+# SETTINGS
 # --------------------------------------------------
 USER_NAME = "MD AFNAN KHAJA"
 COLLEGE = "GM Institute of Technology, Davangere"
@@ -21,123 +21,90 @@ FALLBACK_MESSAGE = (
     "please try asking me again or ask about my projects like the AI Crypto Bot!"
 )
 
-VOICE_ERROR_MESSAGE = (
-    "I couldn't clearly hear that. "
-    "Please speak a little louder or try again."
-)
+VOICE_ERROR_MESSAGE = "I couldn't clearly hear that. Please try again."
 
-st.set_page_config(
-    page_title=f"{USER_NAME} - AI Digital Twin",
-    page_icon="🎙️"
-)
+st.set_page_config(page_title="AI Digital Twin", page_icon="🎙️")
 
 # --------------------------------------------------
-# 2. PERSONA
-# --------------------------------------------------
-SYSTEM_PROMPT = f"""
-You are the AI Digital Twin of {USER_NAME}, a 7th-semester CSE student from {COLLEGE}.
-Rules:
-- Be honest about being a learner
-- Mention my AI Crypto Bot and AI-Adaptive Drainage Digital Twin projects when relevant
-- Keep answers to max 2 sentences
-- Always speak in first person using I, me, my
-"""
-
-# --------------------------------------------------
-# 3. UI
+# UI
 # --------------------------------------------------
 st.title("🎙️ Talk to My Digital Twin")
 st.write(f"**Candidate:** {USER_NAME}")
-st.info("Click the mic, ask a question, and I will reply with my voice.")
 
-# --------------------------------------------------
-# 4. MIC INPUT
-# --------------------------------------------------
-audio_data = mic_recorder(
-    start_prompt="🎤 Record",
-    stop_prompt="🛑 Stop & Send",
-    key="recorder"
-)
+audio_data = mic_recorder("🎤 Record", "🛑 Stop", key="rec")
 
 if audio_data:
+    # --------------------------------------------------
+    # AUDIO → TEXT
+    # --------------------------------------------------
+    audio_bytes = BytesIO(audio_data["bytes"])
+    sound = AudioSegment.from_file(audio_bytes, format="webm")
+    sound = sound.set_frame_rate(16000).set_channels(1)
+
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as f:
+        sound.export(f.name, format="wav")
+        wav_path = f.name
+
+    r = sr.Recognizer()
+
     try:
-        # --------------------------------------------------
-        # 5. AUDIO → PCM WAV
-        # --------------------------------------------------
-        with st.spinner("Listening carefully..."):
-            audio_bytes = BytesIO(audio_data["bytes"])
-            sound = AudioSegment.from_file(audio_bytes, format="webm")
-            sound = sound.set_frame_rate(16000).set_channels(1)
+        with sr.AudioFile(wav_path) as src:
+            audio = r.record(src)
+            user_text = r.recognize_google(audio)
+    except sr.UnknownValueError:
+        st.warning(VOICE_ERROR_MESSAGE)
+        st.stop()
 
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as wav_file:
-                sound.export(wav_file.name, format="wav")
-                wav_path = wav_file.name
+    st.chat_message("user").write(user_text)
 
-        # --------------------------------------------------
-        # 6. SPEECH TO TEXT (SAFE)
-        # --------------------------------------------------
-        r = sr.Recognizer()
-        r.energy_threshold = 300
-        r.dynamic_energy_threshold = True
+    # 🚫 Reject useless inputs
+    if len(user_text.strip()) < 4:
+        st.chat_message("assistant").write(
+            "Could you please ask a complete question?"
+        )
+        st.stop()
 
-        try:
-            with sr.AudioFile(wav_path) as source:
-                audio = r.record(source)
-                user_text = r.recognize_google(audio)
-        except sr.UnknownValueError:
-            st.warning(VOICE_ERROR_MESSAGE)
-            st.chat_message("assistant").write(VOICE_ERROR_MESSAGE)
-            os.remove(wav_path)
-            st.stop()
-        except sr.RequestError:
-            st.error("Speech service unavailable. Please try again.")
-            os.remove(wav_path)
-            st.stop()
+    # --------------------------------------------------
+    # GEMINI PROMPT (FIXED)
+    # --------------------------------------------------
+    final_prompt = f"""
+You are {USER_NAME}, a 7th-semester CSE student from {COLLEGE}.
+You must always answer as yourself in first person.
 
-        st.chat_message("user").write(user_text)
+Rules:
+- Max 2 sentences
+- Be confident but honest
+- Mention AI Crypto Bot or AI Drainage Digital Twin if relevant
+- NEVER refuse to answer unless unsafe
 
-        # --------------------------------------------------
-        # 7. GEMINI CALL (SAFE)
-        # --------------------------------------------------
-        with st.spinner("Thinking as my Digital Twin..."):
-            url = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={API_KEY}"
+Question:
+{user_text}
+"""
 
-            payload = {
-                "contents": [{
-                    "parts": [
-                        {"text": SYSTEM_PROMPT},
-                        {"text": user_text}
-                    ]
-                }]
-            }
+    url = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={API_KEY}"
 
-            response = requests.post(url, json=payload, timeout=20)
-            result = response.json()
+    payload = {
+        "contents": [{
+            "parts": [{"text": final_prompt}]
+        }]
+    }
 
-            if (
-                "candidates" in result and
-                len(result["candidates"]) > 0 and
-                "content" in result["candidates"][0]
-            ):
-                ai_text = result["candidates"][0]["content"]["parts"][0].get(
-                    "text", FALLBACK_MESSAGE
-                )
-            else:
-                ai_text = FALLBACK_MESSAGE
+    response = requests.post(url, json=payload, timeout=20)
+    result = response.json()
 
-        st.chat_message("assistant").write(ai_text)
+    if "candidates" in result and result["candidates"]:
+        ai_text = result["candidates"][0]["content"]["parts"][0]["text"]
+    else:
+        ai_text = FALLBACK_MESSAGE
 
-        # --------------------------------------------------
-        # 8. TEXT TO SPEECH
-        # --------------------------------------------------
-        tts = gTTS(ai_text, lang="en")
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as mp3:
-            tts.save(mp3.name)
-            st.audio(mp3.name, autoplay=True)
+    st.chat_message("assistant").write(ai_text)
 
-        os.remove(wav_path)
+    # --------------------------------------------------
+    # VOICE OUTPUT
+    # --------------------------------------------------
+    tts = gTTS(ai_text)
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as mp3:
+        tts.save(mp3.name)
+        st.audio(mp3.name, autoplay=True)
 
-    except Exception as e:
-        st.error("A temporary issue occurred. Please try again.")
-        st.chat_message("assistant").write(FALLBACK_MESSAGE)
-        st.exception(e)
+    os.remove(wav_path)
