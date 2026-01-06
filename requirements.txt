@@ -3,3 +3,5 @@ google-generativeai
 gTTS
 streamlit-mic-recorder
 requests
+SpeechRecognition
+pydub
