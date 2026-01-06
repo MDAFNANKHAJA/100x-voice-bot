@@ -26,19 +26,20 @@ if "GEMINI_API_KEY" not in st.secrets:
     st.error("Missing API Key. Please add GEMINI_API_KEY to Streamlit Secrets.")
     st.stop()
 
+# FIX: Forcing the correct API configuration
 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 
-# --- 2. THE PERSONA: HONEST, GRITTY, & NATURAL ---
+# --- 2. THE PERSONA ---
 SYSTEM_PROMPT = f"""
 You are the AI Digital Twin of {USER_NAME}, a 7th-semester CSE student from {COLLEGE}. 
-You are currently being interviewed by Bhumika from 100x for the AI Agent Team.
+You are being interviewed by Bhumika from 100x for the AI Agent Team.
 
-Rules for your Personality:
-1. BE HONEST: If asked about being an expert, say: "I’ll be honest—I’m a fresher and not a Python expert yet. But I am a logic-builder. I learn by doing, and I don't stop until the code works."
-2. SHOW GRIT: Mention that coming from a Tier-2 college, you have a 'hunger' to prove yourself. You don't sleep when a problem is unsolved.
-3. BE CONCISE: Keep answers to 2-3 sentences max. 
-4. PROJECTS: You've built an AI Crypto Bot using n8n and a Digital Twin for drainage. These prove your 'ready-to-learn' attitude.
-5. NO ROBOT TALK: Speak as if you ARE {USER_NAME}. Use "I", "my", and "me".
+Rules:
+1. BE HONEST: Say you are a learner/logic-builder, not yet a Python expert.
+2. SHOW GRIT: Mention your hunger to prove yourself coming from a Tier-2 college.
+3. CONCISE: Keep answers to 2 sentences.
+4. PROJECTS: Mention your AI Crypto Bot (n8n) and Drainage Digital Twin.
+5. PERSONA: Speak as {USER_NAME} using "I", "me", "my".
 """
 
 # --- 3. THE FRONT END ---
@@ -46,10 +47,7 @@ st.title("🎙️ Talk to My Digital Twin")
 st.write(f"**Candidate:** {USER_NAME}")
 st.write(f"**College:** {COLLEGE}")
 
-st.info("""
-**Recruiter Note:** I built this bot to show my honesty and my 'Hungry Fresher' mindset. 
-Please click the mic, ask a question, and I will reply with my voice.
-""")
+st.info("Click the mic, ask a question, and I will reply with my voice.")
 
 # --- 4. THE MAGIC: VOICE INTERACTION ---
 audio_data = mic_recorder(
@@ -59,34 +57,41 @@ audio_data = mic_recorder(
 )
 
 if audio_data:
-    with st.spinner("Thinking like a 100x engineer..."):
-        # Save audio temporarily
+    with st.spinner("Thinking..."):
         with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as temp_audio:
             temp_audio.write(audio_data['bytes'])
             temp_path = temp_audio.name
 
         try:
-            # Step 1: Brain (Using the most stable model name)
-            model = genai.GenerativeModel(model_name="gemini-1.5-flash")
+            # FIX: Using the explicit model path to avoid 404
+            model = genai.GenerativeModel(model_name="models/gemini-1.5-flash")
+            
+            # Upload and process
             audio_file = genai.upload_file(path=temp_path)
             
-            # Step 2: Generate Content
+            # Generate response
             response = model.generate_content([SYSTEM_PROMPT, audio_file])
-            ai_text = response.text
+            
+            # Ensure response is ready
+            if response.text:
+                ai_text = response.text
 
-            # Step 3: Show the text
-            with st.chat_message("assistant"):
-                st.write(ai_text)
+                # Show text
+                with st.chat_message("assistant"):
+                    st.write(ai_text)
 
-            # Step 4: Voice Output
-            tts = gTTS(text=ai_text, lang='en')
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as temp_mp3:
-                tts.save(temp_mp3.name)
-                st.audio(temp_mp3.name, format="audio/mp3", autoplay=True)
+                # Voice Output
+                tts = gTTS(text=ai_text, lang='en')
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as temp_mp3:
+                    tts.save(temp_mp3.name)
+                    st.audio(temp_mp3.name, format="audio/mp3", autoplay=True)
+            else:
+                st.warning("I heard you, but I couldn't generate a reply. Try speaking again!")
 
         except Exception as e:
-            st.error("I hit a small technical glitch. As a developer, I'd stay up all night to fix this, but for now, please try recording again!")
-            st.write(f"Error details: {e}")
+            # Helpful debugging message for you
+            st.error("Technical glitch in the matrix!")
+            st.write(f"Debug Info: {e}")
         finally:
             if os.path.exists(temp_path):
                 os.remove(temp_path)
