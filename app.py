@@ -30,7 +30,6 @@ if audio_data:
     try:
         with st.spinner("Processing voice..."):
             audio_bytes = BytesIO(audio_data["bytes"])
-            # FFmpeg (from packages.txt) allows pydub to read this
             sound = AudioSegment.from_file(audio_bytes) 
             
             with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as wav_file:
@@ -45,24 +44,48 @@ if audio_data:
 
         st.chat_message("user").write(user_text)
 
-        # --- 4. GEMINI API ---
+        # --- 4. GEMINI API (SAFETY-PROOF VERSION) ---
         with st.spinner("Thinking..."):
             url = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={API_KEY}"
-            prompt = f"You are the AI Digital Twin of {USER_NAME} from {COLLEGE}. Be honest, show grit. User asked: {user_text}"
-            payload = {"contents": [{"parts": [{"text": prompt}]}]}
+            
+            prompt = f"""You are the AI Digital Twin of {USER_NAME} from {COLLEGE}. 
+            Answering a recruiter from 100x. Be honest, show grit. 
+            If asked if you are an expert, say you are a hardworking learner.
+            User asked: {user_text}"""
+
+            payload = {
+                "contents": [{"parts": [{"text": prompt}]}],
+                "safetySettings": [
+                    {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
+                    {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
+                    {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
+                    {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"}
+                ]
+            }
+            
             response = requests.post(url, json=payload)
-            ai_text = response.json()["candidates"][0]["content"]["parts"][0]["text"]
+            result = response.json()
 
-            st.chat_message("assistant").write(ai_text)
+            # SAFE CHECK: See if candidates exist before accessing
+            if "candidates" in result and len(result["candidates"]) > 0:
+                ai_text = result["candidates"][0]["content"]["parts"][0]["text"]
+                
+                st.chat_message("assistant").write(ai_text)
 
-        # --- 5. TEXT TO SPEECH ---
-        tts = gTTS(ai_text, lang="en")
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as mp3:
-            tts.save(mp3.name)
-            st.audio(mp3.name, autoplay=True)
+                # --- 5. TEXT TO SPEECH ---
+                with st.spinner("Generating audio..."):
+                    tts = gTTS(ai_text, lang="en")
+                    with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as mp3:
+                        tts.save(mp3.name)
+                        st.audio(mp3.name, autoplay=True)
+            else:
+                st.warning("The AI brain blocked the response or hit a limit. Try rephrasing your question!")
+                # Debugging info for you (visible in the app if it fails)
+                if "promptFeedback" in result:
+                    st.write("Safety Feedback:", result["promptFeedback"])
 
         os.remove(wav_path)
 
     except Exception as e:
         st.error("Audio processing failed. Try again!")
-        st.write(f"Error: {e}")
+        st.write(f"Error Details: {e}")
