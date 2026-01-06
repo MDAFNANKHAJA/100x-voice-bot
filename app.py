@@ -10,7 +10,7 @@ import os
 USER_NAME = "[MD AFNAN KHAJA]" 
 COLLEGE = "GM University, Davangere"
 
-st.set_page_config(page_title=f"{MD AFNAN KHAJA} - AI Twin", page_icon="🎙️")
+st.set_page_config(page_title="MD AFNAN KHAJA - AI Twin", page_icon="🎙️")
 
 # Hide Streamlit's default menu to make it look like a professional app
 hide_st_style = """
@@ -96,3 +96,4 @@ if audio_data:
 
 st.divider()
 st.caption("Built with ❤️ and Grit | Powered by Gemini 1.5 & Streamlit")
+
