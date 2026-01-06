@@ -16,14 +16,14 @@ if "GEMINI_API_KEY" not in st.secrets:
     st.error("Missing API Key in Streamlit Secrets.")
     st.stop()
 
-# --- THE FIX: FORCING V1 STABLE API ---
+# Configure
 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 
 # --- 2. THE PERSONA ---
 SYSTEM_PROMPT = f"""
 You are the AI Digital Twin of {USER_NAME}, a 7th-semester CSE student from {COLLEGE}. 
 Rules: Be honest, show grit, mention your Crypto Bot (n8n) and Drainage projects. 
-Keep answers to 2 sentences. Use 'I', 'me', 'my'.
+Keep answers to 2 sentences. Use 'I', 'me', 'my'. Speak like a hardworking engineering student.
 """
 
 # --- 3. THE FRONT END ---
@@ -31,7 +31,7 @@ st.title("🎙️ Talk to My Digital Twin")
 st.write(f"**Candidate:** {USER_NAME}")
 st.info("Click the mic, ask a question, and I will reply with my voice.")
 
-# --- 4. THE MAGIC ---
+# --- 4. THE MAGIC: USING THE 'PRO' MODEL FALLBACK ---
 audio_data = mic_recorder(
     start_prompt="⏺️ Record Your Question",
     stop_prompt="⏹️ Stop & Send to AI",
@@ -39,19 +39,20 @@ audio_data = mic_recorder(
 )
 
 if audio_data:
-    with st.spinner("Processing..."):
+    with st.spinner("Bypassing the glitch... thinking..."):
         with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as temp_audio:
             temp_audio.write(audio_data['bytes'])
             temp_path = temp_audio.name
 
         try:
-            # FIX: Using the absolute path name which is recognized by all API versions
-            model = genai.GenerativeModel("models/gemini-1.5-flash-latest")
+            # FIX: We use 'gemini-1.5-pro' as a fallback if 'flash' is 404ing
+            # Pro is more stable in some Streamlit regions
+            model = genai.GenerativeModel("gemini-1.5-pro")
             
-            # Upload and process
+            # Upload the file
             audio_file = genai.upload_file(path=temp_path)
             
-            # Generate response
+            # Generate content
             response = model.generate_content([SYSTEM_PROMPT, audio_file])
             
             if response and response.text:
@@ -65,11 +66,11 @@ if audio_data:
                     tts.save(temp_mp3.name)
                     st.audio(temp_mp3.name, format="audio/mp3", autoplay=True)
             else:
-                st.warning("I heard you, but the brain didn't reply. Try speaking again!")
+                st.warning("The API connected but returned no text. Try again!")
 
         except Exception as e:
-            st.error("The glitch is persistent, but we are closer!")
-            st.write(f"Technical Log: {e}")
+            st.error("Even the fallback hit a wall. Let's check the API Key.")
+            st.write(f"New Log: {e}")
         finally:
             if os.path.exists(temp_path):
                 os.remove(temp_path)
