@@ -142,8 +142,86 @@ if "conversation_history" not in st.session_state:
 if "audio_count" not in st.session_state:
     st.session_state.audio_count = 0
 
+# Function to call Gemini API
+def call_gemini_api(prompt, api_key):
+    """Call Google Gemini API"""
+    url = f"https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent?key={api_key}"
+    
+    payload = {
+        "contents": [{
+            "parts": [{
+                "text": prompt
+            }]
+        }],
+        "generationConfig": {
+            "temperature": 0.85,
+            "topP": 0.95,
+            "topK": 40,
+            "maxOutputTokens": 250
+        }
+    }
+    
+    response = requests.post(url, json=payload, timeout=15)
+    return response
+
+# Function to call Claude API
+def call_claude_api(prompt, api_key):
+    """Call Anthropic Claude API"""
+    url = "https://api.anthropic.com/v1/messages"
+    
+    headers = {
+        "x-api-key": api_key,
+        "anthropic-version": "2023-06-01",
+        "content-type": "application/json"
+    }
+    
+    payload = {
+        "model": "claude-3-5-sonnet-20241022",
+        "max_tokens": 250,
+        "messages": [{
+            "role": "user",
+            "content": prompt
+        }]
+    }
+    
+    response = requests.post(url, json=payload, headers=headers, timeout=15)
+    return response
+
+# Function to call OpenAI API
+def call_openai_api(prompt, api_key):
+    """Call OpenAI ChatGPT API"""
+    url = "https://api.openai.com/v1/chat/completions"
+    
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json"
+    }
+    
+    payload = {
+        "model": "gpt-3.5-turbo",
+        "messages": [{
+            "role": "user",
+            "content": prompt
+        }],
+        "temperature": 0.85,
+        "max_tokens": 250
+    }
+    
+    response = requests.post(url, json=payload, headers=headers, timeout=15)
+    return response
+
 # Sidebar
 with st.sidebar:
+    st.markdown("### 🤖 AI Provider Selection")
+    
+    ai_provider = st.radio(
+        "Choose AI Provider:",
+        ["Gemini (Google)", "Claude (Anthropic)", "ChatGPT (OpenAI)"],
+        help="Select which AI to use for responses"
+    )
+    
+    st.markdown("---")
+    
     st.markdown("### 👤 About Me")
     st.markdown(f"**Name:** {USER_NAME}")
     st.markdown(f"**College:** {COLLEGE}")
@@ -179,10 +257,11 @@ st.markdown("### 🎤 Ask Me Anything!")
 col1, col2 = st.columns([2, 1])
 
 with col1:
-    st.markdown("""
+    st.markdown(f"""
     <div class="info-card">
         <h4>📢 How to Use:</h4>
         <ol>
+            <li>Select AI Provider in sidebar (Currently: <b>{ai_provider}</b>)</li>
             <li>Click "🎤 Start Recording"</li>
             <li>Ask your question clearly</li>
             <li>Click "🛑 Stop & Send"</li>
@@ -266,15 +345,30 @@ if audio_data:
         time.sleep(0.5)
         
         # Step 3: Generate Response
-        status_text.info("🤖 **Step 3/4:** Generating response...")
+        status_text.info(f"🤖 **Step 3/4:** Generating response using {ai_provider}...")
         progress_bar.progress(75, text="Thinking...")
         
-        # Check API key
-        if "GEMINI_API_KEY" not in st.secrets:
-            status_text.error("⚠️ API Key not configured. Please add GEMINI_API_KEY to secrets.")
+        # Check API key based on provider
+        api_key_name = None
+        if "Gemini" in ai_provider:
+            api_key_name = "GEMINI_API_KEY"
+        elif "Claude" in ai_provider:
+            api_key_name = "CLAUDE_API_KEY"
+        elif "ChatGPT" in ai_provider:
+            api_key_name = "OPENAI_API_KEY"
+        
+        if api_key_name not in st.secrets:
+            status_text.error(f"⚠️ {api_key_name} not found in secrets!")
+            st.error(f"""
+            **Setup Instructions:**
+            1. Go to your Streamlit Cloud app settings
+            2. Click on "Secrets"
+            3. Add: `{api_key_name} = "your-key-here"`
+            4. Redeploy the app
+            """)
             st.stop()
         
-        API_KEY = st.secrets["GEMINI_API_KEY"]
+        api_key = st.secrets[api_key_name]
         
         # Build conversation context
         context = ""
@@ -320,35 +414,69 @@ CURRENT QUESTION: {user_text}
 
 Respond as {USER_NAME}:"""
         
-        # API call
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={API_KEY}"
+        # Call appropriate API
+        response = None
+        ai_text = None
         
-        payload = {
-            "contents": [{"parts": [{"text": prompt}]}],
-            "generationConfig": {
-                "temperature": 0.85,
-                "topP": 0.95,
-                "topK": 40,
-                "maxOutputTokens": 250
-            }
-        }
-        
-        response = requests.post(url, json=payload, timeout=15)
-        
-        if response.status_code != 200:
-            status_text.error(f"❌ API Error: {response.status_code}")
-            st.error("Please check your API key and try again.")
+        try:
+            if "Gemini" in ai_provider:
+                response = call_gemini_api(prompt, api_key)
+                
+                if response.status_code == 200:
+                    result = response.json()
+                    if "candidates" in result and result["candidates"]:
+                        ai_text = result["candidates"][0]["content"]["parts"][0]["text"].strip()
+                
+            elif "Claude" in ai_provider:
+                response = call_claude_api(prompt, api_key)
+                
+                if response.status_code == 200:
+                    result = response.json()
+                    if "content" in result:
+                        ai_text = result["content"][0]["text"].strip()
+            
+            elif "ChatGPT" in ai_provider:
+                response = call_openai_api(prompt, api_key)
+                
+                if response.status_code == 200:
+                    result = response.json()
+                    if "choices" in result:
+                        ai_text = result["choices"][0]["message"]["content"].strip()
+            
+            # Handle errors
+            if response and response.status_code != 200:
+                status_text.error(f"❌ API Error: {response.status_code}")
+                
+                error_solutions = {
+                    400: "Invalid request. Check your API key format.",
+                    401: "Authentication failed. Your API key is invalid.",
+                    403: "Access denied. Check API key permissions.",
+                    404: "Endpoint not found. The API URL or model might be wrong.",
+                    429: "Rate limit exceeded. Wait a moment and try again.",
+                    500: "Server error. Try again in a moment.",
+                    503: "Service unavailable. Try again later."
+                }
+                
+                st.error(f"**Error:** {error_solutions.get(response.status_code, 'Unknown error')}")
+                
+                with st.expander("🔍 Debug Info"):
+                    st.write(f"**Status Code:** {response.status_code}")
+                    st.write(f"**Response:** {response.text}")
+                    st.write(f"**Provider:** {ai_provider}")
+                
+                st.stop()
+            
+            if not ai_text:
+                status_text.error("❌ No response generated")
+                st.error("The AI didn't generate a response. Try again.")
+                st.stop()
+            
+        except Exception as api_error:
+            status_text.error(f"❌ API Error: {str(api_error)}")
+            st.error(f"Failed to connect to {ai_provider}. Check your API key and internet connection.")
+            with st.expander("🔍 Error Details"):
+                st.exception(api_error)
             st.stop()
-        
-        result = response.json()
-        
-        if "candidates" not in result or not result["candidates"]:
-            status_text.error("❌ No response generated")
-            with st.expander("Debug Info"):
-                st.json(result)
-            st.stop()
-        
-        ai_text = result["candidates"][0]["content"]["parts"][0]["text"].strip()
         
         # Save conversation
         st.session_state.conversation_history.append({
@@ -362,7 +490,7 @@ Respond as {USER_NAME}:"""
         
         # Display response
         st.markdown("---")
-        st.markdown("### 💬 My Response:")
+        st.markdown(f"### 💬 My Response (via {ai_provider}):")
         st.markdown(f"""
         <div class="chat-bubble">
             <p style='font-size: 1.1em; margin: 0;'>{ai_text}</p>
@@ -396,6 +524,8 @@ Respond as {USER_NAME}:"""
         progress_bar.empty()
     except Exception as e:
         status_text.error(f"❌ Error: {str(e)}")
+        with st.expander("🔍 Full Error"):
+            st.exception(e)
         progress_bar.empty()
 
 # Footer
@@ -406,7 +536,7 @@ st.markdown("""
         <b>💡 Pro Tips:</b> Speak clearly • Use a quiet environment • Ask specific questions
     </p>
     <p style='font-size: 0.95em;'>
-        Built with ❤️ by {name} | Powered by Streamlit & Google Gemini AI
+        Built with ❤️ by {name} | Supports Gemini, Claude & ChatGPT
     </p>
 </div>
 """.format(name=USER_NAME), unsafe_allow_html=True)
