@@ -27,7 +27,7 @@ if "GEMINI_API_KEY" not in st.secrets:
     st.error("Missing API Key. Please add GEMINI_API_KEY to Streamlit Secrets.")
     st.stop()
 
-genai.configure(api_key=st.secrets["AIzaSyCO7Gklr7RhPT9VlUktuqIJLHoAgxDCWsw"])
+genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 
 
 # --- 2. THE PERSONA: HONEST, GRITTY, & NATURAL ---
@@ -95,5 +95,6 @@ if audio_data:
 
 st.divider()
 st.caption("Built with ❤️ and Grit | Powered by Gemini 1.5 & Streamlit")
+
 
 
