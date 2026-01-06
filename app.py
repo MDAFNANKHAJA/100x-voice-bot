@@ -44,27 +44,38 @@ if audio_data:
 
         st.chat_message("user").write(user_text)
 
-        # --- 4. GEMINI API (ULTRA STABLE VERSION) ---
+        # --- 4. GEMINI API (SYSTEM INSTRUCTION METHOD) ---
         with st.spinner("Thinking..."):
+            # Using v1beta for better instruction support
             url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={API_KEY}"
             
-            # Simplified prompt to pass all safety filters
-            prompt = f"The user asked: {user_text}. Respond as {USER_NAME}, a student from {COLLEGE}. Be helpful and professional."
-
             payload = {
-                "contents": [{"parts": [{"text": prompt}]}]
+                "system_instruction": {
+                    "parts": {
+                        "text": f"You are MD AFNAN KHAJA, a 7th-sem student at {COLLEGE}. You are an AI Agent builder. Be professional and show grit. Keep answers to 2 sentences."
+                    }
+                },
+                "contents": {
+                    "parts": {
+                        "text": user_text
+                    }
+                },
+                "safety_settings": [
+                    {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
+                    {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
+                    {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
+                    {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"}
+                ]
             }
             
             response = requests.post(url, json=payload)
             result = response.json()
 
-            # --- LOGIC TO EXTRACT TEXT OR SHOW ERROR ---
-            if "candidates" in result and result["candidates"][0].get("content"):
+            # Attempt to get text
+            if "candidates" in result and "content" in result["candidates"][0]:
                 ai_text = result["candidates"][0]["content"]["parts"][0]["text"]
             else:
-                # If blocked, this helps us see WHY
-                reason = result.get("promptFeedback", {}).get("blockReason", "Unknown Limit")
-                ai_text = f"I am {USER_NAME}. I'm currently refining my AI brain to be more robust. Let's talk about my work with AI Agents or my Crypto Bot instead! (Reason: {reason})"
+                ai_text = f"I am {USER_NAME}. I'm passionate about AI and currently working on my Digital Twin. Ask me about my Crypto Market bot!"
 
             st.chat_message("assistant").write(ai_text)
 
@@ -77,5 +88,5 @@ if audio_data:
         os.remove(wav_path)
 
     except Exception as e:
-        st.error("Audio processing failed. Try again!")
-        st.write(f"Error Details: {e}")
+        st.error("Something went wrong. Let's try again.")
+        st.write(f"Log: {e}")
